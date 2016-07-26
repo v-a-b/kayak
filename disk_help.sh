@@ -102,26 +102,32 @@ SMIboot() {
 }
 
 BuildRpool() {
-  ztype=""
-  ztgt=""
-  disks=`ListDisksUnique $*`
-  log "Disks being used for rpool: $disks"
-  if [[ -z "$disks" ]]; then
-    bomb "No matching disks found to build rpool"
-  fi
-  for i in $disks
-  do
-    SMIboot $i
-    if [[ -n "$ztgt" ]]; then
-      ztype="mirror"
+  if [[ "$1" !=  "use_existing"  ]]; then
+    ztype=""
+    ztgt=""
+    disks=`ListDisksUnique $*`
+    log "Disks being used for rpool: $disks"
+    if [[ -z "$disks" ]]; then
+      bomb "No matching disks found to build rpool"
     fi
-    ztgt="$ztgt ${i}s0"
-    INSTALL_GRUB_TGT="$INSTALL_GRUB_TGT /dev/rsdk/${i}s2"
-  done
-  log "zpool destroy rpool (just in case we've been run twice)"
-  zpool destroy rpool 2> /dev/null
-  log "Creating rpool with: zpool create -f rpool $ztype $ztgt"
-  zpool create -f rpool $ztype $ztgt || bomb "Failed to create rpool"
+    for i in $disks
+    do
+      SMIboot $i
+      if [[ -n "$ztgt" ]]; then
+        ztype="mirror"
+      fi
+      ztgt="$ztgt ${i}s0"
+      INSTALL_GRUB_TGT="$INSTALL_GRUB_TGT /dev/rsdk/${i}s2"
+    done
+    log "zpool destroy rpool (just in case we've been run twice)"
+    zpool destroy rpool 2> /dev/null
+    log "Creating rpool with: zpool create -f rpool $ztype $ztgt"
+    zpool create -f rpool $ztype $ztgt || bomb "Failed to create rpool"
+  else
+    log "Importing existing rpool"
+    zpool import -f rpool
+  fi
+
   BuildBE
 }
 GetTargetVolSize() {
@@ -135,7 +141,7 @@ GetTargetVolSize() {
         local vsize=`printf %0.f $quart`
     fi
     echo $vsize
-}    
+}
 GetRpoolFree() {
     local zfsavail=`/sbin/zfs list -H -o avail rpool`
     if [[ ${zfsavail:(-1)} = "G" ]]; then
